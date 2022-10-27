@@ -1,9 +1,9 @@
 const ciscoRisPort = require("../main");
 
 var server = {
-  hostname: "10.10.20.1",
+  hostname: "192.168.1.230",
   username: "administrator",
-  password: "ciscopsdt",
+  password: "h0mel@b",
 };
 
 (async () => {
@@ -13,9 +13,9 @@ var server = {
       server.username,
       server.password,
       "SelectCmDevice",
-      "1000",
+      1000,
       "Any",
-      "131",
+      "Hello",
       "Any",
       "Name",
       "",

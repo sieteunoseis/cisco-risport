@@ -1,7 +1,7 @@
 {
   "name": "cisco-risport",
-  "version": "1.0.0",
-  "description": "A library to pull RisPort status from Cisco UC applications (VOS) via SOAP",
+  "version": "1.1.0",
+  "description": "A library to pull RisPort status from Cisco CUCM via SOAP",
   "main": "main.js",
   "scripts": {
     "test": "NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 NODE_TLS_REJECT_UNAUTHORIZED=0 node ./test/tests.js"
@@ -14,8 +14,7 @@
     "cisco",
     "node",
     "risport",
-    "cucm",
-    "vos"
+    "cucm"
   ],
   "author": "Jeremy Worden <jeremy@automate.builders> (https://automate.builders/)",
   "license": "MIT",
