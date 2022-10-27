@@ -134,8 +134,12 @@ module.exports = {
               var returnResults =
                 output.Body.selectCmDeviceResponse.selectCmDeviceReturn
                   .SelectCmDeviceResult.CmNodes.item;
-              removeKeys(returnResults, "$");
-              resolve(clean(returnResults));
+              if(returnResults){
+                removeKeys(returnResults, "$");
+                resolve(clean(returnResults));
+              }else{
+                reject("Response empty");
+              }
             }
           } else {
             reject("Response empty");
@@ -179,9 +183,10 @@ module.exports = {
                 output.Body.selectCtiItemResponse.selectCtiItemReturn
                   .SelectCtiItemResult.CtiNodes.item;
               if(returnResults){
-                // console.log(returnResults);
                 removeKeys(returnResults, "$");
                 resolve(clean(returnResults));
+              }else{
+                reject("Response empty");
               }
             }
           } else {
