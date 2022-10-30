@@ -30,63 +30,29 @@ NODE_TLS_REJECT_UNAUTHORIZED=0
 
 ## Usage
 
-In Node.js:
-
 ```javascript
-const ciscoRisport = require("cisco-risport");
+const risPortService = require("../main");
 
-// Default login information for Cisco DevNet
-var server = {
-  hostname: "10.10.20.1",
-  username: "administrator",
-  password: "ciscopsdt",
-};
+let service = new risPortService("10.10.20.1", "administrator", "ciscopsdt");
 
-// This method allows clients to perform Cisco Unified CM device-related queries. 
-(async () => {
-  let output = await ciscoRisPort
-    .selectCmDevice(
-      server.hostname,
-      server.username,
-      server.password,
-      "SelectCmDeviceExt", // Either SelectCmDevice or SelectCmDeviceExt
-      1000, // The maximum number of devices to return. The maximum parameter value is 1000.
-      "Any", // Device Class (Any, Phone, Gateway, H323, Cti, VoiceMail, MediaResources, HuntList, SIPTrunk, Unknown)
-      255, // Model Enum. Use 255 for "any model". Can use a string of model name and it will convert it to the enum (Example "SIP Trunk").
-      "Any", // Status (Any, Registered, UnRegistered, Rejected, PartiallyRegistered, Unknown)
-      "Name", // Select By (Name, IPV4Address, IPV6Address, DirNumber, Description, SIPStatus)
-      "SEPE8B7480316D6", // Select Items. Can either be a single item string or an array of items. May include names, IP addresses, or directory numbers or * to return wildcard matches.
-      "Any", // Protocol (Any, SCCP, SIP, Unknown)
-      "Any" // Download Status (Any, Upgrading, Successful, Failed, Unknown)
-    )
-    .catch((err) => {
-      console.log(err);
-      return false;
-    });
-  console.log(JSON.stringify(output));
-})();
+service
+  .selectCmDevice(
+    "SelectCmDeviceExt",1000,"Any","","Any","","Name","","Any","Any")
+  .then((results) => {
+    console.log("SelectCmDeviceExt Results:", "\n", results);
+  })
+  .catch((error) => {
+    console.log(error);
+  });
 
-// This method allows clients to perform CTI manager related queries.
-(async () => {
-  let output = await ciscoRisPort
-    .selectCtiDevice(
-      server.hostname,
-      server.username,
-      server.password,
-      1000, // The maximum number of devices to return. The maximum parameter value is 1000.
-      "Line", // A search is requested on Provider, Device, or Line.
-      "Any", // Status (Any, Open, Closed, OpenFailed, Unknown)
-      "AppId", // Select by (AppId, AppIPV4Address, AppIPV6Address, UserId)
-      "cucmuser-192.168.168.169-4963", // AppItems. String representing a unique CTI application connection defined by the Select by
-      "SEPF01FAF38ABC2", // List of devices controlled by the CTI application(s).
-      "4000" // List of directory numbers controlled by the CTI application(s). Note: DirNumber lookup only works if specifying "Line" in the soap:CtiMgrClass tag.
-    )
-    .catch((err) => {
-      console.log(err);
-      return false;
-    });
-  console.log(JSON.stringify(output));
-})();
+service
+  .selectCtiDevice(1000, "Line", "Any", "", "AppId", "", "", "")
+  .then((results) => {
+    console.log("SelectCtiDevice Results:", "\n", results);
+  })
+  .catch((error) => {
+    console.log(error);
+  });
 ```
 
 ## Examples

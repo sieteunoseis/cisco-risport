@@ -1,51 +1,22 @@
-const ciscoRisPort = require("../main");
+const risPortService = require("../main");
 
-var server = {
-  hostname: "10.10.20.1",
-  username: "administrator",
-  password: "ciscopsdt",
-};
+let service = new risPortService("10.10.20.1", "administrator", "ciscopsdt");
 
-(async () => {
-  let output = await ciscoRisPort
-    .selectCmDevice(
-      server.hostname,
-      server.username,
-      server.password,
-      "SelectCmDevice",
-      1000,
-      "Any",
-      "Hello",
-      "Any",
-      "Name",
-      "",
-      "Any",
-      "Any"
-    )
-    .catch((err) => {
-      console.log(err);
-      return false;
-    });
-  console.log(JSON.stringify(output));
-})();
+service
+  .selectCmDevice(
+    "SelectCmDeviceExt",1000,"Any","","Any","","Name","","Any","Any")
+  .then((results) => {
+    console.log("SelectCmDeviceExt Results:", "\n", results);
+  })
+  .catch((error) => {
+    console.log(error);
+  });
 
-(async () => {
-  let output = await ciscoRisPort
-    .selectCtiDevice(
-      server.hostname,
-      server.username,
-      server.password,
-      "1000",
-      "Line",
-      "Any",
-      "AppId",
-      "",
-      "",
-      ""
-    )
-    .catch((err) => {
-      console.log(err);
-      return false;
-    });
-  console.log(JSON.stringify(output));
-})();
+service
+  .selectCtiDevice(1000, "Line", "Any", "", "AppId", "", "", "")
+  .then((results) => {
+    console.log("SelectCtiDevice Results:", "\n", results);
+  })
+  .catch((error) => {
+    console.log(error);
+  });
