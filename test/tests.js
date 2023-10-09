@@ -1,5 +1,6 @@
 const risPortService = require("../main");
 const path = require('path');
+const { cleanEnv, str, host } = require("envalid");
 
 // If not production load the local env file
 if(process.env.NODE_ENV === "development"){
@@ -10,7 +11,17 @@ if(process.env.NODE_ENV === "development"){
   require('dotenv').config({ path: path.join(__dirname, '..', 'env', 'staging.env') })
 }
 
-let service = new risPortService(process.env.CUCM_HOSTNAME, process.env.CUCM_USERNAME, process.env.CUCM_PASSWORD);
+const env = cleanEnv(process.env, {
+  NODE_ENV: str({
+    choices: ["development", "test", "production", "staging"],
+    desc: "Node environment",
+  }),
+  CUCM_HOSTNAME: host({ desc: "Cisco CUCM Hostname or IP Address to send the perfmon request to. Typically the publisher." }),
+  CUCM_USERNAME: str({ desc: "Cisco CUCM AXL Username." }),
+  CUCM_PASSWORD: str({ desc: "Cisco CUCM AXL Password." })
+});
+
+let service = new risPortService(env.CUCM_HOSTNAME, env.CUCM_USERNAME, env.CUCM_PASSWORD);
 
 service
   .selectCmDevice(
