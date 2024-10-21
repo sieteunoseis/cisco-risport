@@ -1,5 +1,6 @@
 const util = require("util");
 const Models = require("./lib/Model");
+const statusReasons = require("./lib/statusReasons");
 const parseString = require("xml2js").parseString;
 const stripPrefix = require("xml2js").processors.stripPrefix;
 
@@ -75,8 +76,7 @@ class risPortService {
     this._OPTIONS = {
       method: "POST",
       headers: {
-        Authorization:
-          "Basic " + Buffer.from(username + ":" + password).toString("base64"),
+        Authorization: "Basic " + Buffer.from(username + ":" + password).toString("base64"),
         "Content-Type": "text/xml;charset=UTF-8",
       },
     };
@@ -92,20 +92,19 @@ class risPortService {
         console.log(success);
       }))
    * @memberof risPortService
+   * @param {('SelectCmDevice'|'SelectCmDeviceExt')} soapAction - The soap action to use
+   * @param {number} maxReturnedDevices - The maximum number of devices to return. The maximum parameter value is 2000.
+   * @param {('Any'|'Phone'|'Gateway'|'H323'|'Cti'|'VoiceMail'|'MediaResources'|'HuntList'|'SIPTrunk'|'Unknown')} deviceclass - The device class to query for real-time status.
+   * @param {string|number} model - The model to search for or 255 for "any model". Alternatively, you can use the model name.
+   * @param {('Any'|'Registered'|'UnRegistered'|'Rejected'|'PartiallyRegistered'|'Unknown')} status - The status to search for. If you do not specify a status, the system returns all devices that match the other criteria.
+   * @param {string} node - The UC Manager node name to query. If no NodeName is given, all nodes in the cluster are queried.
+   * @param {('Name'|'IPV4Address'|'IPV6Address'|'DirNumber'|'Description'|'SIPStatus')} selectBy - The select by to search for. If you do not specify a select by, the system returns all devices that match the other criteria.
+   * @param {string|array} selectItem - An array of one or more item elements, which may include names, IP addresses, or directory numbers, depending on the SelectBy parameter. The item value can include a * to return wildcard matches. You can also pass a single item.
+   * @param {('Any'|'SCCP'|'SIP'|'Unknown')} protocol - The protocol to search for. If you do not specify a protocol, the system returns all devices that match the other criteria.
+   * @param {('Any'|'Upgrading'|'Successful'|'Failed'|'Unknown')} downloadStatus - The download status to search for. If you do not specify a download status, the system returns all devices that match the other criteria.
    * @returns {promise} returns a Promise
    */
-  selectCmDevice(
-    soapAction,
-    maxReturnedDevices,
-    deviceclass,
-    model,
-    status,
-    node,
-    selectBy,
-    selectItem,
-    protocol,
-    downloadStatus
-  ) {
+  selectCmDevice(soapAction, maxReturnedDevices, deviceclass, model, status, node, selectBy, selectItem, protocol, downloadStatus) {
     var itemStr;
     var XML;
     var options = this._OPTIONS;
@@ -113,21 +112,9 @@ class risPortService {
     var host = this._HOST;
 
     if (Array.isArray(selectItem)) {
-      itemStr = selectItem.map(
-        (phoneName) =>
-          "<soap:item>" +
-          "<soap:Item>" +
-          phoneName +
-          "</soap:Item>" +
-          "</soap:item>"
-      );
+      itemStr = selectItem.map((phoneName) => "<soap:item>" + "<soap:Item>" + phoneName + "</soap:Item>" + "</soap:item>");
     } else {
-      itemStr =
-        "<soap:item>" +
-        "<soap:Item>" +
-        selectItem +
-        "</soap:Item>" +
-        "</soap:item>";
+      itemStr = "<soap:item>" + "<soap:Item>" + selectItem + "</soap:Item>" + "</soap:item>";
     }
 
     // Let's check if the user gave us a numeric value. If not let's convert to model enum. If not found set to "Any".
@@ -139,31 +126,9 @@ class risPortService {
     }
 
     if (soapAction === "SelectCmDeviceExt") {
-      XML = util.format(
-        XML_EXT_ENVELOPE,
-        maxReturnedDevices,
-        deviceclass,
-        model,
-        status,
-        node,
-        selectBy,
-        itemStr,
-        protocol,
-        downloadStatus
-      );
+      XML = util.format(XML_EXT_ENVELOPE, maxReturnedDevices, deviceclass, model, status, node, selectBy, itemStr, protocol, downloadStatus);
     } else {
-      XML = util.format(
-        XML_ENVELOPE,
-        maxReturnedDevices,
-        deviceclass,
-        model,
-        status,
-        node,
-        selectBy,
-        itemStr,
-        protocol,
-        downloadStatus
-      );
+      XML = util.format(XML_ENVELOPE, maxReturnedDevices, deviceclass, model, status, node, selectBy, itemStr, protocol, downloadStatus);
     }
 
     var soapBody = Buffer.from(XML);
@@ -171,10 +136,7 @@ class risPortService {
 
     return new Promise((resolve, reject) => {
       // We fetch the API endpoint
-      fetch(
-        `https://${host}:8443/realtimeservice2/services/RISService70`,
-        options
-      )
+      fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options)
         .then(async (response) => {
           var data = []; // create an array to save chunked data from server
           // response.body is a ReadableStream
@@ -189,16 +151,14 @@ class risPortService {
           removeKeys(output, "$");
 
           if (keyExists(output, "SelectCmDeviceResult")) {
-            var returnResults =
-              output.Body.selectCmDeviceResponse.selectCmDeviceReturn
-                .SelectCmDeviceResult.CmNodes.item;
+            var returnResults = output.Body.selectCmDeviceResponse.selectCmDeviceReturn.SelectCmDeviceResult.CmNodes.item;
             if (returnResults) {
               resolve(clean(returnResults));
             } else {
               reject(output.Body.Fault);
             }
-          }else{
-            reject({"response":"empty"});
+          } else {
+            reject({ response: "empty" });
           }
         })
         .catch((error) => {
@@ -217,16 +177,7 @@ class risPortService {
    * @memberof risPortService
    * @returns {promise} returns a Promise
    */
-  selectCtiDevice(
-    maxReturnedDevices,
-    ctiMgrClass,
-    status,
-    node,
-    selectAppBy,
-    appItem,
-    devName,
-    dirNumber
-  ) {
+  selectCtiDevice(maxReturnedDevices, ctiMgrClass, status, node, selectAppBy, appItem, devName, dirNumber) {
     var appItemsStr;
     var devNamesStr;
     var dirNumbersStr;
@@ -236,80 +187,31 @@ class risPortService {
     var host = this._HOST;
 
     if (Array.isArray(appItem)) {
-      appItemsStr = appItem.map(
-        (item) =>
-          "<soap:item>" +
-          "<soap:AppItem>" +
-          item +
-          "</soap:AppItem>" +
-          "</soap:item>"
-      );
+      appItemsStr = appItem.map((item) => "<soap:item>" + "<soap:AppItem>" + item + "</soap:AppItem>" + "</soap:item>");
     } else {
-      appItemsStr =
-        "<soap:item>" +
-        "<soap:AppItem>" +
-        appItem +
-        "</soap:AppItem>" +
-        "</soap:item>";
+      appItemsStr = "<soap:item>" + "<soap:AppItem>" + appItem + "</soap:AppItem>" + "</soap:item>";
     }
 
     if (Array.isArray(devName)) {
-      devNamesStr = appItem.map(
-        (item) =>
-          "<soap:item>" +
-          "<soap:DevName>" +
-          item +
-          "</soap:DevName>" +
-          "</soap:item>"
-      );
+      devNamesStr = appItem.map((item) => "<soap:item>" + "<soap:DevName>" + item + "</soap:DevName>" + "</soap:item>");
     } else {
-      devNamesStr =
-        "<soap:item>" +
-        "<soap:DevName>" +
-        devName +
-        "</soap:DevName>" +
-        "</soap:item>";
+      devNamesStr = "<soap:item>" + "<soap:DevName>" + devName + "</soap:DevName>" + "</soap:item>";
     }
 
     if (Array.isArray(dirNumber)) {
-      dirNumbersStr = dirNumber.map(
-        (item) =>
-          "<soap:item>" +
-          "<soap:DirNumber>" +
-          item +
-          "</soap:DirNumber>" +
-          "</soap:item>"
-      );
+      dirNumbersStr = dirNumber.map((item) => "<soap:item>" + "<soap:DirNumber>" + item + "</soap:DirNumber>" + "</soap:item>");
     } else {
-      dirNumbersStr =
-        "<soap:item>" +
-        "<soap:DirNumber>" +
-        dirNumber +
-        "</soap:DirNumber>" +
-        "</soap:item>";
+      dirNumbersStr = "<soap:item>" + "<soap:DirNumber>" + dirNumber + "</soap:DirNumber>" + "</soap:item>";
     }
 
-    XML = util.format(
-      XML_CTI_ENVELOPE,
-      maxReturnedDevices,
-      ctiMgrClass,
-      status,
-      node,
-      selectAppBy,
-      appItemsStr,
-      devNamesStr,
-      dirNumbersStr
-    );
+    XML = util.format(XML_CTI_ENVELOPE, maxReturnedDevices, ctiMgrClass, status, node, selectAppBy, appItemsStr, devNamesStr, dirNumbersStr);
 
     var soapBody = Buffer.from(XML);
     options.body = soapBody;
 
     return new Promise((resolve, reject) => {
       // We fetch the API endpoint
-      fetch(
-        `https://${host}:8443/realtimeservice2/services/RISService70`,
-        options
-      )
+      fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options)
         .then(async (response) => {
           var data = []; // create an array to save chunked data from server
           // response.body is a ReadableStream
@@ -323,13 +225,11 @@ class risPortService {
           // Remove unnecessary keys
           removeKeys(output, "$");
           if (keyExists(output, "SelectCtiItemResult")) {
-            var returnResults =
-              output.Body.selectCtiItemResponse.selectCtiItemReturn
-                .SelectCtiItemResult.CtiNodes.item;
+            var returnResults = output.Body.selectCtiItemResponse.selectCtiItemReturn.SelectCtiItemResult.CtiNodes.item;
             if (returnResults) {
               resolve(clean(returnResults));
             } else {
-              reject({"response":"empty"});
+              reject({ response: "empty" });
             }
           } else {
             reject(output.Body.Fault);
@@ -339,6 +239,12 @@ class risPortService {
           reject(error);
         }); // catches the error and logs it
     });
+  }
+  returnModels() {
+    return Models;
+  }
+  returnStatusReasons() {
+    return statusReasons;
   }
 }
 
@@ -387,7 +293,7 @@ const keyExists = (obj, key) => {
  * @param obj The object from where you want to remove the keys
  * @param keys An array of property names (strings) to remove
  */
- const removeKeys = (obj, keys) => {
+const removeKeys = (obj, keys) => {
   for (var prop in obj) {
     if (obj.hasOwnProperty(prop)) {
       switch (typeof obj[prop]) {
@@ -413,11 +319,7 @@ const clean = (object) => {
     if (v && typeof v === "object") {
       clean(v);
     }
-    if (
-      (v && typeof v === "object" && !Object.keys(v).length) ||
-      v === null ||
-      v === undefined
-    ) {
+    if ((v && typeof v === "object" && !Object.keys(v).length) || v === null || v === undefined) {
       if (Array.isArray(object)) {
         object.splice(k, 1);
       } else {
