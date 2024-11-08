@@ -22,6 +22,7 @@ const env = cleanEnv(process.env, {
 });
 
 (async () => {
+  var cookie = null; // We will store the cookie here
   let service = new risPortService(env.CUCM_HOSTNAME, env.CUCM_USERNAME, env.CUCM_PASSWORD);
 
   var models = service.returnModels();
@@ -31,24 +32,32 @@ const env = cleanEnv(process.env, {
 
   var statusReasons = service.returnStatusReasons();
 
-  console.log("Let's list out all the models we support");
+  console.log("Let's list out all the status reasons we could see.");
   console.log(statusReasons);
 
   console.log("Trying with model name Any");
+
   await service
-    .selectCmDevice("SelectCmDeviceExt", 1000, "Any", "", "Any", "", "Name", "", "Any", "Any")
-    .then((results) => {
-      console.log("SelectCmDeviceExt Results:", "\n", JSON.stringify(results));
+    .selectCmDevice("SelectCmDeviceExt", 2000, "Any", "", "Any", "", "Name", "", "Any", "Any")
+    .then((response) => {
+      cookie = response.cookie;
+      console.log("SelectCmDeviceExt Results:", "\n", JSON.stringify(response.results));
     })
     .catch((error) => {
       console.log(error);
     });
 
-  console.log("Trying with model name Cisco 8821");
+  console.log("Use cookie we got from the previous request for all subsequent requests");
+  if (cookie) {
+    service = new risPortService(env.CUCM_HOSTNAME, "", "", { cookie: cookie });
+  }
+
+   console.log("Trying with model name Cisco 8821."); 
+
   await service
-    .selectCmDevice("SelectCmDeviceExt", 1000, "Any", "Cisco 8821", "Any", "", "Name", "", "Any", "Any")
+    .selectCmDevice("SelectCmDeviceExt", 2000, "Any", "Cisco 8821", "Any", "", "Name", "", "Any", "Any")
     .then((results) => {
-      console.log("SelectCmDeviceExt Results:", "\n", JSON.stringify(results));
+      console.log("SelectCmDeviceExt Results:", "\n", JSON.stringify(results.results));
     })
     .catch((error) => {
       console.log(error);
@@ -56,7 +65,7 @@ const env = cleanEnv(process.env, {
 
   console.log("Listing CtiDevice Results");
   await service
-    .selectCtiDevice(1000, "Line", "Any", "", "AppId", "", "", "")
+    .selectCtiDevice(2000, "Line", "Any", "", "AppId", "", "", "")
     .then((results) => {
       console.log("SelectCtiDevice Results:", "\n", JSON.stringify(results));
     })

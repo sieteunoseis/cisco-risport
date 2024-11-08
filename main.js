@@ -1,3 +1,5 @@
+// fetch-retry can also wrap Node.js's native fetch API implementation:
+const fetch = require("fetch-retry")(global.fetch);
 const util = require("util");
 const Models = require("./lib/Model");
 const statusReasons = require("./lib/statusReasons");
@@ -71,15 +73,33 @@ var XML_CTI_ENVELOPE = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.
  </soapenv:Body>
  </soapenv:Envelope>`;
 
+// Set up our promise results
+var promiseResults = {
+  cookie: "",
+  results: "",
+};
+
+// Set up our error results
+var errorResults = {
+  message: "",
+};
+
 class risPortService {
-  constructor(host, username, password) {
+  constructor(host, username, password, options) {
     this._OPTIONS = {
+      retries: process.env.RISPORT_RETRIES ? parseInt(process.env.RISPORT_RETRIES) : 3,
+      retryDelay: process.env.RISPORT_RETRIES_DELAY ? parseInt(process.env.RISPORT_RETRIES_DELAY) : 1000,
+      retryOn: [503],
       method: "POST",
       headers: {
         Authorization: "Basic " + Buffer.from(username + ":" + password).toString("base64"),
         "Content-Type": "text/xml;charset=UTF-8",
+        Connection: "keep-alive",
       },
     };
+    if (options) {
+      this._OPTIONS.headers = Object.assign(this._OPTIONS.headers, options);
+    }
     this._HOST = host;
   }
 
@@ -102,7 +122,7 @@ class risPortService {
    * @param {string|array} selectItem - An array of one or more item elements, which may include names, IP addresses, or directory numbers, depending on the SelectBy parameter. The item value can include a * to return wildcard matches. You can also pass a single item.
    * @param {('Any'|'SCCP'|'SIP'|'Unknown')} protocol - The protocol to search for. If you do not specify a protocol, the system returns all devices that match the other criteria.
    * @param {('Any'|'Upgrading'|'Successful'|'Failed'|'Unknown')} downloadStatus - The download status to search for. If you do not specify a download status, the system returns all devices that match the other criteria.
-   * @returns {promise} returns a Promise
+   * @returns {promise} returns a Promise of 
    */
   selectCmDevice(soapAction, maxReturnedDevices, deviceclass, model, status, node, selectBy, selectItem, protocol, downloadStatus) {
     var itemStr;
@@ -139,6 +159,7 @@ class risPortService {
       fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options)
         .then(async (response) => {
           var data = []; // create an array to save chunked data from server
+          promiseResults.cookie = response.headers.get("set-cookie") ? response.headers.get("set-cookie") : "";
           // response.body is a ReadableStream
           const reader = response.body.getReader();
           for await (const chunk of readChunks(reader)) {
@@ -149,16 +170,31 @@ class risPortService {
           let output = await parseXml(xmlOutput);
           // Remove unnecessary keys
           removeKeys(output, "$");
-
           if (keyExists(output, "SelectCmDeviceResult")) {
             var returnResults = output.Body.selectCmDeviceResponse.selectCmDeviceReturn.SelectCmDeviceResult.CmNodes.item;
             if (returnResults) {
-              resolve(clean(returnResults));
-            } else {
-              reject(output.Body.Fault);
+              promiseResults.results = clean(returnResults);
+              resolve(promiseResults);
+            }else{
+              // No results found
+              resolve(promiseResults);
             }
           } else {
-            reject({ response: "empty" });
+            // Error checking. If the response contains a fault, we return the fault.
+            if (keyExists(output, "Fault")) {
+              if (output.Body.Fault.faultcode.includes("RateControl")) {
+                errorResults.message = { faultcode: "RateControl", faultstring: output.Body.Fault.faultstring };
+              } else if (output.Body.Fault.faultcode.includes("generalException")) {
+                errorResults.message = { faultcode: "generalException", faultstring: output.Body.Fault.faultstring };
+              } else {
+                errorResults.message = { faultcode: output.Body.Fault.faultcode, faultstring: output.Body.Fault.faultstring };
+              }
+              reject(errorResults);
+            } else {
+              // Error unknown. Reject with the response status instead. Most likely a 500 error from the server.
+              errorResults.message = response.status;
+              reject(errorResults);
+            }
           }
         })
         .catch((error) => {
@@ -214,6 +250,7 @@ class risPortService {
       fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options)
         .then(async (response) => {
           var data = []; // create an array to save chunked data from server
+          promiseResults.cookie = response.headers.get("set-cookie") ? response.headers.get("set-cookie") : "";
           // response.body is a ReadableStream
           const reader = response.body.getReader();
           for await (const chunk of readChunks(reader)) {
@@ -227,12 +264,28 @@ class risPortService {
           if (keyExists(output, "SelectCtiItemResult")) {
             var returnResults = output.Body.selectCtiItemResponse.selectCtiItemReturn.SelectCtiItemResult.CtiNodes.item;
             if (returnResults) {
-              resolve(clean(returnResults));
+              promiseResults.results = clean(returnResults);
+              resolve(promiseResults);
             } else {
-              reject({ response: "empty" });
+              // No results found
+              resolve(promiseResults);
             }
           } else {
-            reject(output.Body.Fault);
+            // Error checking. If the response contains a fault, we return the fault.
+            if (keyExists(output, "Fault")) {
+              if (output.Body.Fault.faultcode.includes("RateControl")) {
+                errorResults.message = { faultcode: "RateControl", faultstring: output.Body.Fault.faultstring };
+              } else if (output.Body.Fault.faultcode.includes("generalException")) {
+                errorResults.message = { faultcode: "generalException", faultstring: output.Body.Fault.faultstring };
+              } else {
+                errorResults.message = { faultcode: output.Body.Fault.faultcode, faultstring: output.Body.Fault.faultstring };
+              }
+              reject(errorResults);
+            } else {
+              // Error unknown. Reject with the response status instead. Most likely a 500 error from the server.
+              errorResults.message = response.status;
+              reject(errorResults);
+            }
           }
         })
         .catch((error) => {
