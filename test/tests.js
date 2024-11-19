@@ -56,8 +56,8 @@ const env = cleanEnv(process.env, {
 
   await service
     .selectCmDevice("SelectCmDeviceExt", 2000, "Any", "Cisco 8821", "Any", "", "Name", "", "Any", "Any")
-    .then((results) => {
-      console.log("SelectCmDeviceExt Results:", "\n", JSON.stringify(results.results));
+    .then((response) => {
+      console.log("SelectCmDeviceExt Results:", "\n", JSON.stringify(response.results));
     })
     .catch((error) => {
       console.log(error);
@@ -66,8 +66,8 @@ const env = cleanEnv(process.env, {
   console.log("Listing CtiDevice Results");
   await service
     .selectCtiDevice(2000, "Line", "Any", "", "AppId", "", "", "")
-    .then((results) => {
-      console.log("SelectCtiDevice Results:", "\n", JSON.stringify(results));
+    .then((response) => {
+      console.log("SelectCtiDevice Results:", "\n", JSON.stringify(response.results));
     })
     .catch((error) => {
       console.log(error);

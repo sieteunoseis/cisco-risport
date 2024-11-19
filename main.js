@@ -1,10 +1,10 @@
-// fetch-retry can also wrap Node.js's native fetch API implementation:
 const fetch = require("fetch-retry")(global.fetch);
 const util = require("util");
 const Models = require("./lib/Model");
 const statusReasons = require("./lib/statusReasons");
 const parseString = require("xml2js").parseString;
 const stripPrefix = require("xml2js").processors.stripPrefix;
+const http = require("http");
 
 /**
  * Cisco RisPort Service
@@ -73,23 +73,23 @@ var XML_CTI_ENVELOPE = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.
  </soapenv:Body>
  </soapenv:Envelope>`;
 
-// Set up our promise results
-var promiseResults = {
-  cookie: "",
-  results: "",
-};
-
-// Set up our error results
-var errorResults = {
-  message: "",
-};
-
 class risPortService {
-  constructor(host, username, password, options) {
+  constructor(host, username, password, options = {}, retry = true) {
     this._OPTIONS = {
-      retries: process.env.RISPORT_RETRIES ? parseInt(process.env.RISPORT_RETRIES) : 3,
-      retryDelay: process.env.RISPORT_RETRIES_DELAY ? parseInt(process.env.RISPORT_RETRIES_DELAY) : 1000,
-      retryOn: [503],
+      retryOn: async function (attempt, error, response) {
+        if (!retry) {
+          return false;
+        }
+        if (attempt > (process.env.RP_RETRY ? parseInt(process.env.RP_RETRY) : 3)) {
+          return false;
+        }
+        // retry on any network error, or 4xx or 5xx status codes
+        if (error !== null || response.status >= 400) {
+          const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          await delay(process.env.RP_RETRY_DELAY ? parseInt(process.env.RP_RETRY_DELAY) : 5000);
+          return true;
+        }
+      },
       method: "POST",
       headers: {
         Authorization: "Basic " + Buffer.from(username + ":" + password).toString("base64"),
@@ -122,85 +122,66 @@ class risPortService {
    * @param {string|array} selectItem - An array of one or more item elements, which may include names, IP addresses, or directory numbers, depending on the SelectBy parameter. The item value can include a * to return wildcard matches. You can also pass a single item.
    * @param {('Any'|'SCCP'|'SIP'|'Unknown')} protocol - The protocol to search for. If you do not specify a protocol, the system returns all devices that match the other criteria.
    * @param {('Any'|'Upgrading'|'Successful'|'Failed'|'Unknown')} downloadStatus - The download status to search for. If you do not specify a download status, the system returns all devices that match the other criteria.
-   * @returns {promise} returns a Promise of 
+   * @returns {object} returns a object with cookie and results 
    */
-  selectCmDevice(soapAction, maxReturnedDevices, deviceclass, model, status, node, selectBy, selectItem, protocol, downloadStatus) {
-    var itemStr;
-    var XML;
-    var options = this._OPTIONS;
-    options.SOAPAction = `http://schemas.cisco.com/ast/soap/action/#RisPort#${soapAction}`;
-    var host = this._HOST;
+  async selectCmDevice(soapAction, maxReturnedDevices, deviceclass, model, status, node, selectBy, selectItem, protocol, downloadStatus) {
+    try {
+      let options = this._OPTIONS;
+      let host = this._HOST;
+      options.SOAPAction = `http://schemas.cisco.com/ast/soap/action/#RisPort#${soapAction}`;
+      let itemStr;
+      let XML;
 
-    if (Array.isArray(selectItem)) {
-      itemStr = selectItem.map((phoneName) => "<soap:item>" + "<soap:Item>" + phoneName + "</soap:Item>" + "</soap:item>");
-    } else {
-      itemStr = "<soap:item>" + "<soap:Item>" + selectItem + "</soap:Item>" + "</soap:item>";
-    }
-
-    // Let's check if the user gave us a numeric value. If not let's convert to model enum. If not found set to "Any".
-    if (!Number.isInteger(model)) {
-      model = Object.keys(Models).find((key) => Models[key] === model);
-      if (!model) {
-        model = 255;
+      if (Array.isArray(selectItem)) {
+        itemStr = selectItem.map((phoneName) => "<soap:item>" + "<soap:Item>" + phoneName + "</soap:Item>" + "</soap:item>");
+      } else {
+        itemStr = "<soap:item>" + "<soap:Item>" + selectItem + "</soap:Item>" + "</soap:item>";
       }
+
+      // Let's check if the user gave us a numeric value. If not let's convert to model enum. If not found set to "Any".
+      if (!Number.isInteger(model)) {
+        model = Object.keys(Models).find((key) => Models[key] === model);
+        if (!model) {
+          model = 255;
+        }
+      }
+
+      if (soapAction === "SelectCmDeviceExt") {
+        XML = util.format(XML_EXT_ENVELOPE, maxReturnedDevices, deviceclass, model, status, node, selectBy, itemStr, protocol, downloadStatus);
+      } else {
+        XML = util.format(XML_ENVELOPE, maxReturnedDevices, deviceclass, model, status, node, selectBy, itemStr, protocol, downloadStatus);
+      }
+
+      let soapBody = Buffer.from(XML);
+      options.body = soapBody;
+
+      let response = await fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options);
+
+      let promiseResults = {
+        cookie: "",
+        results: "",
+      };
+
+      promiseResults.cookie = response.headers.get("set-cookie") ? response.headers.get("set-cookie") : "";
+
+      let output = await parseXml(await response.text());
+      // Remove unnecessary keys
+      removeKeys(output, "$");
+
+      if (!response.ok) {
+        // Local throw; if it weren't, I'd use Error or a subclass
+        throw { status: response.status, code: http.STATUS_CODES[response.status], message: output?.Body?.Fault?.faultstring ? output.Body.Fault.faultstring : "Unknown" };
+      }
+      if (output?.Body?.selectCmDeviceResponse?.selectCmDeviceReturn) {
+        let returnResults = output?.Body?.selectCmDeviceResponse?.selectCmDeviceReturn?.SelectCmDeviceResult?.CmNodes?.item;
+        promiseResults.results = (returnResults ? clean(returnResults) : "");
+        return promiseResults;
+      } else {
+        return promiseResults;
+      }
+    } catch (error) {
+      throw error;
     }
-
-    if (soapAction === "SelectCmDeviceExt") {
-      XML = util.format(XML_EXT_ENVELOPE, maxReturnedDevices, deviceclass, model, status, node, selectBy, itemStr, protocol, downloadStatus);
-    } else {
-      XML = util.format(XML_ENVELOPE, maxReturnedDevices, deviceclass, model, status, node, selectBy, itemStr, protocol, downloadStatus);
-    }
-
-    var soapBody = Buffer.from(XML);
-    options.body = soapBody;
-
-    return new Promise((resolve, reject) => {
-      // We fetch the API endpoint
-      fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options)
-        .then(async (response) => {
-          var data = []; // create an array to save chunked data from server
-          promiseResults.cookie = response.headers.get("set-cookie") ? response.headers.get("set-cookie") : "";
-          // response.body is a ReadableStream
-          const reader = response.body.getReader();
-          for await (const chunk of readChunks(reader)) {
-            data.push(Buffer.from(chunk));
-          }
-          var buffer = Buffer.concat(data); // create buffer of data
-          let xmlOutput = buffer.toString("binary").trim();
-          let output = await parseXml(xmlOutput);
-          // Remove unnecessary keys
-          removeKeys(output, "$");
-          if (keyExists(output, "SelectCmDeviceResult")) {
-            var returnResults = output.Body.selectCmDeviceResponse.selectCmDeviceReturn.SelectCmDeviceResult.CmNodes.item;
-            if (returnResults) {
-              promiseResults.results = clean(returnResults);
-              resolve(promiseResults);
-            }else{
-              // No results found
-              resolve(promiseResults);
-            }
-          } else {
-            // Error checking. If the response contains a fault, we return the fault.
-            if (keyExists(output, "Fault")) {
-              if (output.Body.Fault.faultcode.includes("RateControl")) {
-                errorResults.message = { faultcode: "RateControl", faultstring: output.Body.Fault.faultstring };
-              } else if (output.Body.Fault.faultcode.includes("generalException")) {
-                errorResults.message = { faultcode: "generalException", faultstring: output.Body.Fault.faultstring };
-              } else {
-                errorResults.message = { faultcode: output.Body.Fault.faultcode, faultstring: output.Body.Fault.faultstring };
-              }
-              reject(errorResults);
-            } else {
-              // Error unknown. Reject with the response status instead. Most likely a 500 error from the server.
-              errorResults.message = response.status;
-              reject(errorResults);
-            }
-          }
-        })
-        .catch((error) => {
-          reject(error);
-        }); // catches the error and logs it
-    });
   }
   /**
    * Post Fetch using Cisco RisPort API
@@ -211,87 +192,69 @@ class risPortService {
         console.log(success);
       }))
    * @memberof risPortService
-   * @returns {promise} returns a Promise
+   * @returns {object} returns a object with cookie and results 
    */
-  selectCtiDevice(maxReturnedDevices, ctiMgrClass, status, node, selectAppBy, appItem, devName, dirNumber) {
-    var appItemsStr;
-    var devNamesStr;
-    var dirNumbersStr;
-    var XML;
-    var options = this._OPTIONS;
-    options.SOAPAction = `http://schemas.cisco.com/ast/soap/action/#RisPort#SelectCtiItem`;
-    var host = this._HOST;
+  async selectCtiDevice(maxReturnedDevices, ctiMgrClass, status, node, selectAppBy, appItem, devName, dirNumber) {
+    try {
+      let appItemsStr;
+      let devNamesStr;
+      let dirNumbersStr;
+      let options = this._OPTIONS;
+      let XML;
+      let host = this._HOST;
+      options.SOAPAction = `http://schemas.cisco.com/ast/soap/action/#RisPort#SelectCtiItem`;
 
-    if (Array.isArray(appItem)) {
-      appItemsStr = appItem.map((item) => "<soap:item>" + "<soap:AppItem>" + item + "</soap:AppItem>" + "</soap:item>");
-    } else {
-      appItemsStr = "<soap:item>" + "<soap:AppItem>" + appItem + "</soap:AppItem>" + "</soap:item>";
+      if (Array.isArray(appItem)) {
+        appItemsStr = appItem.map((item) => "<soap:item>" + "<soap:AppItem>" + item + "</soap:AppItem>" + "</soap:item>");
+      } else {
+        appItemsStr = "<soap:item>" + "<soap:AppItem>" + appItem + "</soap:AppItem>" + "</soap:item>";
+      }
+
+      if (Array.isArray(devName)) {
+        devNamesStr = appItem.map((item) => "<soap:item>" + "<soap:DevName>" + item + "</soap:DevName>" + "</soap:item>");
+      } else {
+        devNamesStr = "<soap:item>" + "<soap:DevName>" + devName + "</soap:DevName>" + "</soap:item>";
+      }
+
+      if (Array.isArray(dirNumber)) {
+        dirNumbersStr = dirNumber.map((item) => "<soap:item>" + "<soap:DirNumber>" + item + "</soap:DirNumber>" + "</soap:item>");
+      } else {
+        dirNumbersStr = "<soap:item>" + "<soap:DirNumber>" + dirNumber + "</soap:DirNumber>" + "</soap:item>";
+      }
+
+      XML = util.format(XML_CTI_ENVELOPE, maxReturnedDevices, ctiMgrClass, status, node, selectAppBy, appItemsStr, devNamesStr, dirNumbersStr);
+
+      let soapBody = Buffer.from(XML);
+      options.body = soapBody;
+
+      let response = await fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options);
+
+      let promiseResults = {
+        cookie: "",
+        results: "",
+      };
+
+      promiseResults.cookie = response.headers.get("set-cookie") ? response.headers.get("set-cookie") : "";
+
+      let output = await parseXml(await response.text());
+      // Remove unnecessary keys
+      removeKeys(output, "$");
+
+      if (!response.ok) {
+        // Local throw; if it weren't, I'd use Error or a subclass
+        throw { status: response.status, code: http.STATUS_CODES[response.status], sessionId: SessionHandle, message: output?.Body?.Fault?.faultstring ? output.Body.Fault.faultstring : "Unknown" };
+      }
+
+      if (output?.Body?.selectCtiItemResponse?.selectCtiItemReturn) {
+        let returnResults = output?.Body?.selectCtiItemResponse?.selectCtiItemReturn?.SelectCtiItemResult?.CtiNodes?.item;
+        promiseResults.results = (returnResults ? clean(returnResults) : "");
+        return promiseResults;
+      } else {
+        return promiseResults;
+      }
+    } catch (error) {
+      throw error;
     }
-
-    if (Array.isArray(devName)) {
-      devNamesStr = appItem.map((item) => "<soap:item>" + "<soap:DevName>" + item + "</soap:DevName>" + "</soap:item>");
-    } else {
-      devNamesStr = "<soap:item>" + "<soap:DevName>" + devName + "</soap:DevName>" + "</soap:item>";
-    }
-
-    if (Array.isArray(dirNumber)) {
-      dirNumbersStr = dirNumber.map((item) => "<soap:item>" + "<soap:DirNumber>" + item + "</soap:DirNumber>" + "</soap:item>");
-    } else {
-      dirNumbersStr = "<soap:item>" + "<soap:DirNumber>" + dirNumber + "</soap:DirNumber>" + "</soap:item>";
-    }
-
-    XML = util.format(XML_CTI_ENVELOPE, maxReturnedDevices, ctiMgrClass, status, node, selectAppBy, appItemsStr, devNamesStr, dirNumbersStr);
-
-    var soapBody = Buffer.from(XML);
-    options.body = soapBody;
-
-    return new Promise((resolve, reject) => {
-      // We fetch the API endpoint
-      fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options)
-        .then(async (response) => {
-          var data = []; // create an array to save chunked data from server
-          promiseResults.cookie = response.headers.get("set-cookie") ? response.headers.get("set-cookie") : "";
-          // response.body is a ReadableStream
-          const reader = response.body.getReader();
-          for await (const chunk of readChunks(reader)) {
-            data.push(Buffer.from(chunk));
-          }
-          var buffer = Buffer.concat(data); // create buffer of data
-          let xmlOutput = buffer.toString("binary").trim();
-          let output = await parseXml(xmlOutput);
-          // Remove unnecessary keys
-          removeKeys(output, "$");
-          if (keyExists(output, "SelectCtiItemResult")) {
-            var returnResults = output.Body.selectCtiItemResponse.selectCtiItemReturn.SelectCtiItemResult.CtiNodes.item;
-            if (returnResults) {
-              promiseResults.results = clean(returnResults);
-              resolve(promiseResults);
-            } else {
-              // No results found
-              resolve(promiseResults);
-            }
-          } else {
-            // Error checking. If the response contains a fault, we return the fault.
-            if (keyExists(output, "Fault")) {
-              if (output.Body.Fault.faultcode.includes("RateControl")) {
-                errorResults.message = { faultcode: "RateControl", faultstring: output.Body.Fault.faultstring };
-              } else if (output.Body.Fault.faultcode.includes("generalException")) {
-                errorResults.message = { faultcode: "generalException", faultstring: output.Body.Fault.faultstring };
-              } else {
-                errorResults.message = { faultcode: output.Body.Fault.faultcode, faultstring: output.Body.Fault.faultstring };
-              }
-              reject(errorResults);
-            } else {
-              // Error unknown. Reject with the response status instead. Most likely a 500 error from the server.
-              errorResults.message = response.status;
-              reject(errorResults);
-            }
-          }
-        })
-        .catch((error) => {
-          reject(error);
-        }); // catches the error and logs it
-    });
   }
   returnModels() {
     return Models;
@@ -300,43 +263,6 @@ class risPortService {
     return statusReasons;
   }
 }
-
-// readChunks() reads from the provided reader and yields the results into an async iterable
-const readChunks = (reader) => {
-  return {
-    async *[Symbol.asyncIterator]() {
-      let readResult = await reader.read();
-      while (!readResult.done) {
-        yield readResult.value;
-        readResult = await reader.read();
-      }
-    },
-  };
-};
-
-const keyExists = (obj, key) => {
-  if (!obj || (typeof obj !== "object" && !Array.isArray(obj))) {
-    return false;
-  } else if (obj.hasOwnProperty(key)) {
-    return true;
-  } else if (Array.isArray(obj)) {
-    for (let i = 0; i < obj.length; i++) {
-      const result = keyExists(obj[i], key);
-      if (result) {
-        return result;
-      }
-    }
-  } else {
-    for (const k in obj) {
-      const result = keyExists(obj[k], key);
-      if (result) {
-        return result;
-      }
-    }
-  }
-
-  return false;
-};
 
 /**
  * Remove all specified keys from an object, no matter how deep they are.

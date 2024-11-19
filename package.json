@@ -1,11 +1,11 @@
 {
   "name": "cisco-risport",
-  "version": "1.2.5",
+  "version": "1.3.0",
   "description": "A library to pull RisPort status from Cisco CUCM via SOAP",
   "main": "main.js",
   "scripts": {
-    "test": "NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 NODE_TLS_REJECT_UNAUTHORIZED=0 NODE_ENV=test node ./test/tests.js",
-    "development": "NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 NODE_TLS_REJECT_UNAUTHORIZED=0 NODE_ENV=development node ./test/tests.js"
+    "test": "NODE_ENV=test node ./test/tests.js",
+    "development": "NODE_ENV=development node ./test/tests.js"
   },
   "repository": {
     "type": "git",
