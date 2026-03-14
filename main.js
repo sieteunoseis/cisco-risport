@@ -133,7 +133,7 @@ class risPortService {
       let XML;
 
       if (Array.isArray(selectItem)) {
-        itemStr = selectItem.map((phoneName) => "<soap:item>" + "<soap:Item>" + phoneName + "</soap:Item>" + "</soap:item>");
+        itemStr = selectItem.map((phoneName) => "<soap:item>" + "<soap:Item>" + phoneName + "</soap:Item>" + "</soap:item>").join("");
       } else {
         itemStr = "<soap:item>" + "<soap:Item>" + selectItem + "</soap:Item>" + "</soap:item>";
       }
@@ -205,19 +205,19 @@ class risPortService {
       options.SOAPAction = `http://schemas.cisco.com/ast/soap/action/#RisPort#SelectCtiItem`;
 
       if (Array.isArray(appItem)) {
-        appItemsStr = appItem.map((item) => "<soap:item>" + "<soap:AppItem>" + item + "</soap:AppItem>" + "</soap:item>");
+        appItemsStr = appItem.map((item) => "<soap:item>" + "<soap:AppItem>" + item + "</soap:AppItem>" + "</soap:item>").join("");
       } else {
         appItemsStr = "<soap:item>" + "<soap:AppItem>" + appItem + "</soap:AppItem>" + "</soap:item>";
       }
 
       if (Array.isArray(devName)) {
-        devNamesStr = appItem.map((item) => "<soap:item>" + "<soap:DevName>" + item + "</soap:DevName>" + "</soap:item>");
+        devNamesStr = appItem.map((item) => "<soap:item>" + "<soap:DevName>" + item + "</soap:DevName>" + "</soap:item>").join("");
       } else {
         devNamesStr = "<soap:item>" + "<soap:DevName>" + devName + "</soap:DevName>" + "</soap:item>";
       }
 
       if (Array.isArray(dirNumber)) {
-        dirNumbersStr = dirNumber.map((item) => "<soap:item>" + "<soap:DirNumber>" + item + "</soap:DirNumber>" + "</soap:item>");
+        dirNumbersStr = dirNumber.map((item) => "<soap:item>" + "<soap:DirNumber>" + item + "</soap:DirNumber>" + "</soap:item>").join("");
       } else {
         dirNumbersStr = "<soap:item>" + "<soap:DirNumber>" + dirNumber + "</soap:DirNumber>" + "</soap:item>";
       }
