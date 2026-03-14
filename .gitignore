@@ -63,3 +63,5 @@ typings/
 
 # mac os
 .DS_Store
+
+/net-commander
