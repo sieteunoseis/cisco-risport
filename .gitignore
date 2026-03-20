@@ -68,3 +68,6 @@ typings/
 
 # Claude Code
 .claude/
+
+# Superpowers docs (local dev specs/plans)
+docs/superpowers/
