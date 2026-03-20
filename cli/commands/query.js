@@ -72,9 +72,19 @@ function registerCommand(program) {
           const format = globalOpts.format || "table";
           if (format === "table") {
             const rows = devices.map((d) => {
-              const row = {};
-              for (const col of columns) row[col] = d[col] ?? "";
-              return row;
+              const ip = d.IPAddress?.item?.IP || d.IPAddress?.item?.[0]?.IP || d.IpAddress || "";
+              const dirNum = d.LinesStatus?.item?.DirectoryNumber || d.LinesStatus?.item?.[0]?.DirectoryNumber || d.DirNumber || "";
+              return {
+                Name: d.Name || "",
+                IpAddress: ip,
+                Status: d.Status || "",
+                StatusReason: d.StatusReasonText || d.StatusReason || "",
+                Model: d.Model || "",
+                Protocol: d.Protocol || "",
+                ActiveLoadID: d.ActiveLoadID || "",
+                DirNumber: dirNum,
+                Description: d.Description || "",
+              };
             });
             await printResult(rows, format);
           } else {

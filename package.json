@@ -14,7 +14,8 @@
   },
   "types": "types/index.d.ts",
   "scripts": {
-    "test": "NODE_ENV=test node ./test/tests.js",
+    "test": "node ./test/unit.js",
+    "test:integration": "NODE_ENV=test node ./test/tests.js",
     "development": "NODE_ENV=development node ./test/tests.js"
   },
   "repository": {
