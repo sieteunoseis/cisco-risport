@@ -1,6 +1,6 @@
 {
   "name": "cisco-risport",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A library to pull RisPort status from Cisco CUCM via SOAP",
   "main": "main.js",
   "bin": {
