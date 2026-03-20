@@ -19,6 +19,7 @@ const env = cleanEnv(process.env, {
   CUCM_HOSTNAME: host({ desc: "Cisco CUCM Hostname or IP Address to send the perfmon request to. Typically the publisher." }),
   CUCM_USERNAME: str({ desc: "Cisco CUCM AXL Username." }),
   CUCM_PASSWORD: str({ desc: "Cisco CUCM AXL Password." }),
+  CUCM_SSO_COOKIE: str({ default: "", desc: "SSO Cookie for cookie-only authentication testing." }),
 });
 
 (async () => {
@@ -72,4 +73,43 @@ const env = cleanEnv(process.env, {
     .catch((error) => {
       console.log(error);
     });
+
+  // ---- SSO Cookie Authentication Tests ----
+  if (env.CUCM_SSO_COOKIE) {
+    console.log("\n--- SSO Cookie Authentication Tests ---\n");
+
+    console.log("Creating service with SSO cookie only (no username/password)");
+    let ssoService = new risPortService(env.CUCM_HOSTNAME, "", "", { cookie: env.CUCM_SSO_COOKIE });
+
+    console.log("SSO: Verifying cookie is set on service");
+    console.log("SSO: getCookie():", ssoService.getCookie());
+
+    console.log("SSO: SelectCmDeviceExt with cookie-only auth");
+    await ssoService
+      .selectCmDevice("SelectCmDeviceExt", 2000, "Any", "", "Any", "", "Name", "", "Any", "Any")
+      .then((response) => {
+        console.log("SSO: SelectCmDeviceExt Results:", "\n", JSON.stringify(response.results));
+        console.log("SSO: Response cookie:", response.cookie ? "received" : "none");
+      })
+      .catch((error) => {
+        console.log("SSO: SelectCmDeviceExt Error:", error);
+      });
+
+    console.log("SSO: SelectCtiDevice with cookie-only auth");
+    await ssoService
+      .selectCtiDevice(2000, "Line", "Any", "", "AppId", "", "", "")
+      .then((response) => {
+        console.log("SSO: SelectCtiDevice Results:", "\n", JSON.stringify(response.results));
+      })
+      .catch((error) => {
+        console.log("SSO: SelectCtiDevice Error:", error);
+      });
+
+    console.log("SSO: Verifying cookie is preserved after requests");
+    console.log("SSO: getCookie() after requests:", ssoService.getCookie());
+
+    console.log("\n--- SSO Cookie Authentication Tests Complete ---\n");
+  } else {
+    console.log("\nSkipping SSO Cookie Authentication tests (CUCM_SSO_COOKIE not set)");
+  }
 })();

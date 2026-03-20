@@ -3,6 +3,9 @@
   "version": "1.4.1",
   "description": "A library to pull RisPort status from Cisco CUCM via SOAP",
   "main": "main.js",
+  "bin": {
+    "cisco-risport": "./bin/cisco-risport.js"
+  },
   "exports": {
     ".": {
       "require": "./main.js",
@@ -26,12 +29,18 @@
   ],
   "author": "Jeremy Worden <jeremy@automate.builders> (https://automate.builders/)",
   "license": "MIT",
+  "funding": "https://buymeacoffee.com/automatebldrs",
   "bugs": {
     "url": "https://github.com/sieteunoseis/cisco-risport/issues"
   },
   "homepage": "https://github.com/sieteunoseis/cisco-risport#readme",
   "dependencies": {
+    "@toon-format/toon": "^2.1.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "csv-stringify": "^6.5.2",
     "fetch-retry": "^6.0.0",
+    "update-notifier": "^7.3.1",
     "util": "*",
     "xml2js": "*"
   },
