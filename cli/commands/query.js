@@ -53,6 +53,8 @@ function registerCommand(program) {
         const protocol = cmdOpts.protocol || "Any";
         const downloadStatus = cmdOpts.downloadStatus || "Any";
 
+        const models = svc.returnModels();
+
         let rawResults;
         if (cmdOpts.paginate) {
           const paged = await svc.selectCmDevicePaginated(action, maxReturned, deviceClass, model, status, node, selectBy, selectItem, protocol, downloadStatus);
@@ -79,7 +81,7 @@ function registerCommand(program) {
                 IpAddress: ip,
                 Status: d.Status || "",
                 StatusReason: d.StatusReasonText || d.StatusReason || "",
-                Model: d.Model || "",
+                Model: models[d.Model] || d.Model || "",
                 Protocol: d.Protocol || "",
                 ActiveLoadID: d.ActiveLoadID || "",
                 DirNumber: dirNum,
