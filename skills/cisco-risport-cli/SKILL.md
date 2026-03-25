@@ -60,10 +60,10 @@ cisco-risport query --select-by DirNumber --item 1001         # by directory num
 cisco-risport query --class Phone --model "Cisco 8845"        # by model
 cisco-risport query --node cucm-pub --status UnRegistered     # unregistered on specific node
 cisco-risport query --paginate                                # auto-paginate all results
-cisco-risport query --ext                                     # use SelectCmDeviceExt for extended data
+cisco-risport query --no-ext                                  # use SelectCmDevice (per-node, may have duplicates)
 ```
 
-Options: `--class`, `--status`, `--model`, `--select-by`, `--item`, `--protocol`, `--download-status`, `--node`, `--max`, `--paginate`, `--ext`
+Options: `--class`, `--status`, `--model`, `--select-by`, `--item`, `--protocol`, `--download-status`, `--node`, `--max`, `--paginate`, `--no-ext`
 
 ### cti — Query CTI device/line/provider status
 
@@ -99,7 +99,7 @@ cisco-risport status-reasons --format json
 cisco-risport summary                     # Phone, Gateway, SIPTrunk counts
 cisco-risport summary --all-classes       # all 8 device classes
 cisco-risport summary --node cucm-pub     # specific node only
-cisco-risport summary --ext               # use extended API
+cisco-risport summary --no-ext            # use SelectCmDevice (per-node, may have duplicates)
 cisco-risport summary --format json       # JSON for scripting
 ```
 

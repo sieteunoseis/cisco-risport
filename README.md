@@ -85,22 +85,22 @@ cisco-risport query --select-by DirNumber --item 1001         # by directory num
 cisco-risport query --class Phone --model "Cisco 8845"        # by model
 cisco-risport query --node cucm-pub --status UnRegistered     # unregistered on a node
 cisco-risport query --paginate                                # auto-paginate all results
-cisco-risport query --ext                                     # use SelectCmDeviceExt
+cisco-risport query --no-ext                                  # use SelectCmDevice (per-node, may have duplicates)
 ```
 
-| Option | Description | Default |
-|---|---|---|
-| `--class <class>` | Any, Phone, Gateway, H323, Cti, VoiceMail, MediaResources, HuntList, SIPTrunk, Unknown | Any |
-| `--status <status>` | Any, Registered, UnRegistered, Rejected, PartiallyRegistered, Unknown | Any |
-| `--model <id>` | Model number or name (255 = any) | 255 |
-| `--select-by <field>` | Name, IPV4Address, IPV6Address, DirNumber, Description, SIPStatus | |
-| `--item <value>` | Single or comma-separated items (used with --select-by) | |
-| `--protocol <proto>` | Any, SCCP, SIP, Unknown | Any |
-| `--download-status <status>` | Any, Upgrading, Successful, Failed, Unknown | Any |
-| `--node <name>` | Filter to a specific CUCM node | |
-| `--max <n>` | Maximum results per page | 1000 |
-| `--paginate` | Auto-paginate through all results using StateInfo | |
-| `--ext` | Use SelectCmDeviceExt instead of SelectCmDevice | |
+| Option                       | Description                                                                             | Default |
+| ---------------------------- | --------------------------------------------------------------------------------------- | ------- |
+| `--class <class>`            | Any, Phone, Gateway, H323, Cti, VoiceMail, MediaResources, HuntList, SIPTrunk, Unknown  | Any     |
+| `--status <status>`          | Any, Registered, UnRegistered, Rejected, PartiallyRegistered, Unknown                   | Any     |
+| `--model <id>`               | Model number or name (255 = any)                                                        | 255     |
+| `--select-by <field>`        | Name, IPV4Address, IPV6Address, DirNumber, Description, SIPStatus                       |         |
+| `--item <value>`             | Single or comma-separated items (used with --select-by)                                 |         |
+| `--protocol <proto>`         | Any, SCCP, SIP, Unknown                                                                 | Any     |
+| `--download-status <status>` | Any, Upgrading, Successful, Failed, Unknown                                             | Any     |
+| `--node <name>`              | Filter to a specific CUCM node                                                          |         |
+| `--max <n>`                  | Maximum results per page                                                                | 1000    |
+| `--paginate`                 | Auto-paginate through all results using StateInfo                                       |         |
+| `--no-ext`                   | Use SelectCmDevice instead of SelectCmDeviceExt (per-node results, may have duplicates) |         |
 
 ### cti — Query CTI device/line/provider status
 
@@ -111,16 +111,16 @@ cisco-risport cti --class Line                                # CTI lines
 cisco-risport cti --select-by AppID --item "Cisco CTIManager" # by application
 ```
 
-| Option | Description | Default |
-|---|---|---|
-| `--class <class>` | Provider, Device, Line | Provider |
-| `--status <status>` | Open, Closed, Any | Any |
-| `--node <name>` | Filter to a specific CUCM node | |
-| `--select-by <field>` | AppName, AppID, UserID | |
-| `--item <value>` | Application name/ID or user ID to filter on | |
-| `--device-name <name>` | Device name filter (comma-separated for multiple) | |
-| `--dir-number <number>` | Directory number filter (comma-separated for multiple) | |
-| `--max <n>` | Maximum results | 1000 |
+| Option                  | Description                                            | Default  |
+| ----------------------- | ------------------------------------------------------ | -------- |
+| `--class <class>`       | Provider, Device, Line                                 | Provider |
+| `--status <status>`     | Open, Closed, Any                                      | Any      |
+| `--node <name>`         | Filter to a specific CUCM node                         |          |
+| `--select-by <field>`   | AppName, AppID, UserID                                 |          |
+| `--item <value>`        | Application name/ID or user ID to filter on            |          |
+| `--device-name <name>`  | Device name filter (comma-separated for multiple)      |          |
+| `--dir-number <number>` | Directory number filter (comma-separated for multiple) |          |
+| `--max <n>`             | Maximum results                                        | 1000     |
 
 ### models — List device model ID-to-name mappings
 
@@ -154,16 +154,16 @@ Checks active cluster configuration, RisPort API connectivity, node discovery, c
 
 ## Global Flags
 
-| Flag | Description |
-|---|---|
-| `--format <type>` | Output format: table (default), json, toon, csv |
-| `--host <host>` | Override CUCM hostname |
-| `--username <user>` | Override CUCM username |
-| `--password <pass>` | Override CUCM password |
-| `--cluster <name>` | Use a specific named cluster |
-| `--insecure` | Skip TLS certificate verification |
-| `--no-audit` | Disable audit logging |
-| `--debug` | Enable debug logging |
+| Flag                | Description                                     |
+| ------------------- | ----------------------------------------------- |
+| `--format <type>`   | Output format: table (default), json, toon, csv |
+| `--host <host>`     | Override CUCM hostname                          |
+| `--username <user>` | Override CUCM username                          |
+| `--password <pass>` | Override CUCM password                          |
+| `--cluster <name>`  | Use a specific named cluster                    |
+| `--insecure`        | Skip TLS certificate verification               |
+| `--no-audit`        | Disable audit logging                           |
+| `--debug`           | Enable debug logging                            |
 
 ## Output Formats
 
@@ -202,7 +202,16 @@ const RisPortService = require("cisco-risport");
 const service = new RisPortService("10.10.20.1", "administrator", "ciscopsdt");
 
 const result = await service.selectCmDevice(
-  "SelectCmDeviceExt", 1000, "Any", "", "Any", "", "Name", "", "Any", "Any"
+  "SelectCmDeviceExt",
+  1000,
+  "Any",
+  "",
+  "Any",
+  "",
+  "Name",
+  "",
+  "Any",
+  "Any",
 );
 console.log("Results:", result);
 ```
@@ -233,7 +242,7 @@ const results = await service.selectCmDeviceBatched(
     chunkSize: 200,
     delayMs: 100,
     onProgress: (batch, total) => console.log(`Batch ${batch}/${total}`),
-  }
+  },
 );
 ```
 
@@ -254,7 +263,16 @@ const results = await service.selectCmDevicePaginated({
 ### CTI Device Query
 
 ```javascript
-const result = await service.selectCtiDevice(1000, "Line", "Any", "", "AppId", "", "", "");
+const result = await service.selectCtiDevice(
+  1000,
+  "Line",
+  "Any",
+  "",
+  "AppId",
+  "",
+  "",
+  "",
+);
 console.log("SelectCtiDevice Results:", result);
 ```
 
@@ -270,7 +288,9 @@ await service.selectCmDevice({ action: "SelectCmDeviceExt", maxReturned: 100 });
 const cookie = service.getCookie();
 
 // Pass cookie to a new instance
-const service2 = new RisPortService("10.10.20.1", "admin", "password", { cookie });
+const service2 = new RisPortService("10.10.20.1", "admin", "password", {
+  cookie,
+});
 ```
 
 ### Utility Methods
@@ -291,26 +311,26 @@ const reasons = service.returnStatusReasons();
 new RisPortService(host, username, password, options?, retry?)
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `host` | string | CUCM hostname or IP |
-| `username` | string | CUCM admin username |
-| `password` | string | CUCM admin password |
-| `options` | object | Optional. `{ cookie }` to pass an existing cookie |
-| `retry` | boolean | Optional. Enable fetch-retry (default: false) |
+| Parameter  | Type    | Description                                       |
+| ---------- | ------- | ------------------------------------------------- |
+| `host`     | string  | CUCM hostname or IP                               |
+| `username` | string  | CUCM admin username                               |
+| `password` | string  | CUCM admin password                               |
+| `options`  | object  | Optional. `{ cookie }` to pass an existing cookie |
+| `retry`    | boolean | Optional. Enable fetch-retry (default: false)     |
 
 ### Methods
 
-| Method | Description |
-|---|---|
-| `selectCmDevice()` | Query CM device status (positional or named params) |
-| `selectCmDevicePaginated()` | Auto-paginate through all devices via StateInfo |
-| `selectCmDeviceBatched()` | Auto-chunk large device lists into batched requests |
-| `selectCtiDevice()` | Query CTI device/line status |
-| `getCookie()` | Get the current session cookie |
-| `setCookie(cookie)` | Set a session cookie |
-| `returnModels()` | Get device model code-to-name mapping |
-| `returnStatusReasons()` | Get status reason code-to-description mapping |
+| Method                      | Description                                         |
+| --------------------------- | --------------------------------------------------- |
+| `selectCmDevice()`          | Query CM device status (positional or named params) |
+| `selectCmDevicePaginated()` | Auto-paginate through all devices via StateInfo     |
+| `selectCmDeviceBatched()`   | Auto-chunk large device lists into batched requests |
+| `selectCtiDevice()`         | Query CTI device/line status                        |
+| `getCookie()`               | Get the current session cookie                      |
+| `setCookie(cookie)`         | Set a session cookie                                |
+| `returnModels()`            | Get device model code-to-name mapping               |
+| `returnStatusReasons()`     | Get status reason code-to-description mapping       |
 
 ## Requirements
 
@@ -334,13 +354,13 @@ node test/unit.js
 
 ## Related Tools
 
-| Tool | Purpose |
-|---|---|
-| [cisco-axl](https://github.com/sieteunoseis/cisco-axl) | CUCM configuration via AXL |
-| [cisco-dime](https://github.com/sieteunoseis/cisco-dime) | CUCM log collection via DIME |
-| [cisco-ise](https://github.com/sieteunoseis/cisco-ise) | ISE endpoint and session management |
-| [cisco-support](https://github.com/sieteunoseis/cisco-support) | Cisco Support APIs (bugs, cases, EoX, PSIRT) |
-| [cisco-uc-engineer](https://github.com/sieteunoseis/cisco-uc-engineer) | UC troubleshooting orchestration |
+| Tool                                                                   | Purpose                                      |
+| ---------------------------------------------------------------------- | -------------------------------------------- |
+| [cisco-axl](https://github.com/sieteunoseis/cisco-axl)                 | CUCM configuration via AXL                   |
+| [cisco-dime](https://github.com/sieteunoseis/cisco-dime)               | CUCM log collection via DIME                 |
+| [cisco-ise](https://github.com/sieteunoseis/cisco-ise)                 | ISE endpoint and session management          |
+| [cisco-support](https://github.com/sieteunoseis/cisco-support)         | Cisco Support APIs (bugs, cases, EoX, PSIRT) |
+| [cisco-uc-engineer](https://github.com/sieteunoseis/cisco-uc-engineer) | UC troubleshooting orchestration             |
 
 ## Funding
 
