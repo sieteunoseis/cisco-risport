@@ -6,6 +6,24 @@ const parseString = require("xml2js").parseString;
 const stripPrefix = require("xml2js").processors.stripPrefix;
 const http = require("http");
 
+// Extract faultstring as a plain string — xml2js may return an object
+function extractFaultString(fault) {
+  if (!fault) return "Unknown SOAP fault";
+  const fs = fault.faultstring;
+  if (typeof fs === "string") return fs;
+  if (fs && typeof fs === "object") return fs._ || JSON.stringify(fs);
+  return String(fault.faultcode || "Unknown SOAP fault");
+}
+
+class RisPortError extends Error {
+  constructor(message, status, code) {
+    super(message);
+    this.name = "RisPortError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 var XML_ENVELOPE = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:soap="http://schemas.cisco.com/ast/soap">
  <soapenv:Header/>
  <soapenv:Body>
@@ -93,18 +111,26 @@ class risPortService {
         if (!retry) {
           return false;
         }
-        if (attempt > (process.env.RP_RETRY ? parseInt(process.env.RP_RETRY) : 3)) {
+        if (
+          attempt > (process.env.RP_RETRY ? parseInt(process.env.RP_RETRY) : 3)
+        ) {
           return false;
         }
         if (error !== null || response.status >= 400) {
-          const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-          await delay(process.env.RP_RETRY_DELAY ? parseInt(process.env.RP_RETRY_DELAY) : 5000);
+          const delay = (ms) =>
+            new Promise((resolve) => setTimeout(resolve, ms));
+          await delay(
+            process.env.RP_RETRY_DELAY
+              ? parseInt(process.env.RP_RETRY_DELAY)
+              : 5000,
+          );
           return true;
         }
       },
       method: "POST",
       headers: {
-        Authorization: "Basic " + Buffer.from(username + ":" + password).toString("base64"),
+        Authorization:
+          "Basic " + Buffer.from(username + ":" + password).toString("base64"),
         "Content-Type": "text/xml;charset=UTF-8",
         Connection: "keep-alive",
       },
@@ -114,7 +140,9 @@ class risPortService {
     }
     this._HOST = host;
     this._cookie = null;
-    this._maxRateLimitRetries = process.env.RP_RATE_LIMIT_RETRIES ? parseInt(process.env.RP_RATE_LIMIT_RETRIES) : 3;
+    this._maxRateLimitRetries = process.env.RP_RATE_LIMIT_RETRIES
+      ? parseInt(process.env.RP_RATE_LIMIT_RETRIES)
+      : 3;
   }
 
   /**
@@ -163,7 +191,19 @@ class risPortService {
    * @param {string} [stateInfo] - StateInfo for pagination. Leave empty for first request.
    * @returns {object} returns an object with cookie, results, and stateInfo
    */
-  async selectCmDevice(soapActionOrOpts, maxReturnedDevices, deviceclass, model, status, node, selectBy, selectItem, protocol, downloadStatus, stateInfo) {
+  async selectCmDevice(
+    soapActionOrOpts,
+    maxReturnedDevices,
+    deviceclass,
+    model,
+    status,
+    node,
+    selectBy,
+    selectItem,
+    protocol,
+    downloadStatus,
+    stateInfo,
+  ) {
     // Feature #12: Support named parameters via options object
     let soapAction;
     if (typeof soapActionOrOpts === "object" && soapActionOrOpts !== null) {
@@ -192,9 +232,23 @@ class risPortService {
       let XML;
 
       if (Array.isArray(selectItem)) {
-        itemStr = selectItem.map((phoneName) => "<soap:item>" + "<soap:Item>" + escapeXml(phoneName) + "</soap:Item>" + "</soap:item>").join("");
+        itemStr = selectItem
+          .map(
+            (phoneName) =>
+              "<soap:item>" +
+              "<soap:Item>" +
+              escapeXml(phoneName) +
+              "</soap:Item>" +
+              "</soap:item>",
+          )
+          .join("");
       } else {
-        itemStr = "<soap:item>" + "<soap:Item>" + escapeXml(selectItem) + "</soap:Item>" + "</soap:item>";
+        itemStr =
+          "<soap:item>" +
+          "<soap:Item>" +
+          escapeXml(selectItem) +
+          "</soap:Item>" +
+          "</soap:item>";
       }
 
       if (!Number.isInteger(model)) {
@@ -202,15 +256,41 @@ class risPortService {
         if (!model || model === "All" || model === "Any") {
           model = 255;
         } else {
-          const found = Object.keys(Models).find((key) => Models[key] === model);
+          const found = Object.keys(Models).find(
+            (key) => Models[key] === model,
+          );
           model = found ? parseInt(found) : 255;
         }
       }
 
       if (soapAction === "SelectCmDeviceExt") {
-        XML = util.format(XML_EXT_ENVELOPE, stateInfo, maxReturnedDevices, deviceclass, model, status, node, selectBy, itemStr, protocol, downloadStatus);
+        XML = util.format(
+          XML_EXT_ENVELOPE,
+          stateInfo,
+          maxReturnedDevices,
+          deviceclass,
+          model,
+          status,
+          node,
+          selectBy,
+          itemStr,
+          protocol,
+          downloadStatus,
+        );
       } else {
-        XML = util.format(XML_ENVELOPE, stateInfo, maxReturnedDevices, deviceclass, model, status, node, selectBy, itemStr, protocol, downloadStatus);
+        XML = util.format(
+          XML_ENVELOPE,
+          stateInfo,
+          maxReturnedDevices,
+          deviceclass,
+          model,
+          status,
+          node,
+          selectBy,
+          itemStr,
+          protocol,
+          downloadStatus,
+        );
       }
 
       let soapBody = Buffer.from(XML);
@@ -219,7 +299,10 @@ class risPortService {
       let rateLimitAttempt = 0;
 
       while (true) {
-        let response = await fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options);
+        let response = await fetch(
+          `https://${host}:8443/realtimeservice2/services/RISService70`,
+          options,
+        );
 
         let promiseResults = {
           cookie: "",
@@ -227,7 +310,9 @@ class risPortService {
           stateInfo: "",
         };
 
-        const responseCookie = response.headers.get("set-cookie") ? response.headers.get("set-cookie") : "";
+        const responseCookie = response.headers.get("set-cookie")
+          ? response.headers.get("set-cookie")
+          : "";
         promiseResults.cookie = responseCookie;
 
         // Feature #14: Auto-capture cookies for session reuse
@@ -240,26 +325,37 @@ class risPortService {
         removeKeys(output, "$");
 
         if (!response.ok) {
-          throw { status: response.status, code: http.STATUS_CODES[response.status], message: output?.Body?.Fault?.faultstring ? output.Body.Fault.faultstring : "Unknown" };
+          throw new RisPortError(
+            extractFaultString(output?.Body?.Fault),
+            response.status,
+            http.STATUS_CODES[response.status],
+          );
         }
 
         // Feature #10: Rate limit detection at SOAP level
-        if (output?.Body?.Fault?.faultstring && output.Body.Fault.faultstring.includes("Exceeded allowed rate")) {
+        const faultStr = extractFaultString(output?.Body?.Fault);
+        if (output?.Body?.Fault && faultStr.includes("Exceeded allowed rate")) {
           if (rateLimitAttempt < this._maxRateLimitRetries) {
             const backoffMs = 30000 * Math.pow(2, rateLimitAttempt);
             rateLimitAttempt++;
             await new Promise((resolve) => setTimeout(resolve, backoffMs));
             continue;
           }
-          throw { status: 429, code: "RateLimited", message: output.Body.Fault.faultstring };
+          throw new RisPortError(faultStr, 429, "RateLimited");
         }
 
-        const responseKey = soapAction === "SelectCmDeviceExt" ? "selectCmDeviceResponse" : "selectCmDeviceResponse";
+        // Catch any other SOAP faults in 200 responses
+        if (output?.Body?.Fault) {
+          throw new RisPortError(faultStr, 500, "SOAPFault");
+        }
 
         if (output?.Body?.selectCmDeviceResponse?.selectCmDeviceReturn) {
-          let returnData = output.Body.selectCmDeviceResponse.selectCmDeviceReturn;
+          let returnData =
+            output.Body.selectCmDeviceResponse.selectCmDeviceReturn;
           let returnResults = returnData?.SelectCmDeviceResult?.CmNodes?.item;
-          promiseResults.results = returnResults ? enrichStatusReasons(clean(returnResults)) : "";
+          promiseResults.results = returnResults
+            ? enrichStatusReasons(clean(returnResults))
+            : "";
           // Feature #11: Capture StateInfo for pagination
           promiseResults.stateInfo = returnData?.StateInfo || "";
           return promiseResults;
@@ -288,7 +384,18 @@ class risPortService {
    * @param {string} [downloadStatus]
    * @returns {object} returns an object with cookie and all aggregated results
    */
-  async selectCmDevicePaginated(soapActionOrOpts, maxReturnedDevices, deviceclass, model, status, node, selectBy, selectItem, protocol, downloadStatus) {
+  async selectCmDevicePaginated(
+    soapActionOrOpts,
+    maxReturnedDevices,
+    deviceclass,
+    model,
+    status,
+    node,
+    selectBy,
+    selectItem,
+    protocol,
+    downloadStatus,
+  ) {
     let allResults = [];
     let currentStateInfo = "";
     let cookie = "";
@@ -296,9 +403,24 @@ class risPortService {
     while (true) {
       let result;
       if (typeof soapActionOrOpts === "object" && soapActionOrOpts !== null) {
-        result = await this.selectCmDevice({ ...soapActionOrOpts, stateInfo: currentStateInfo });
+        result = await this.selectCmDevice({
+          ...soapActionOrOpts,
+          stateInfo: currentStateInfo,
+        });
       } else {
-        result = await this.selectCmDevice(soapActionOrOpts, maxReturnedDevices, deviceclass, model, status, node, selectBy, selectItem, protocol, downloadStatus, currentStateInfo);
+        result = await this.selectCmDevice(
+          soapActionOrOpts,
+          maxReturnedDevices,
+          deviceclass,
+          model,
+          status,
+          node,
+          selectBy,
+          selectItem,
+          protocol,
+          downloadStatus,
+          currentStateInfo,
+        );
       }
 
       if (result.cookie) cookie = result.cookie;
@@ -331,7 +453,12 @@ class risPortService {
    * @param {function} [batchOptions.onProgress] - Progress callback (batchIndex, totalBatches)
    * @returns {object} returns an object with cookie and all merged results
    */
-  async selectCmDeviceBatched(soapActionOrOpts, criteria, selectItems, batchOptions = {}) {
+  async selectCmDeviceBatched(
+    soapActionOrOpts,
+    criteria,
+    selectItems,
+    batchOptions = {},
+  ) {
     const chunkSize = batchOptions.chunkSize || 1000;
     const delayMs = batchOptions.delayMs || 5000;
     const onProgress = batchOptions.onProgress || null;
@@ -349,7 +476,10 @@ class risPortService {
 
       let result;
       if (typeof soapActionOrOpts === "object" && soapActionOrOpts !== null) {
-        result = await this.selectCmDevice({ ...soapActionOrOpts, selectItems: chunks[i] });
+        result = await this.selectCmDevice({
+          ...soapActionOrOpts,
+          selectItems: chunks[i],
+        });
       } else {
         result = await this.selectCmDevice(
           soapActionOrOpts,
@@ -361,7 +491,7 @@ class risPortService {
           criteria.selectBy || "Name",
           chunks[i],
           criteria.protocol || "Any",
-          criteria.downloadStatus || "Any"
+          criteria.downloadStatus || "Any",
         );
       }
 
@@ -390,7 +520,16 @@ class risPortService {
    * @memberof risPortService
    * @returns {object} returns an object with cookie and results
    */
-  async selectCtiDevice(maxReturnedDevices, ctiMgrClass, status, node, selectAppBy, appItem, devName, dirNumber) {
+  async selectCtiDevice(
+    maxReturnedDevices,
+    ctiMgrClass,
+    status,
+    node,
+    selectAppBy,
+    appItem,
+    devName,
+    dirNumber,
+  ) {
     try {
       let appItemsStr;
       let devNamesStr;
@@ -401,25 +540,77 @@ class risPortService {
       options.SOAPAction = `http://schemas.cisco.com/ast/soap/action/#RisPort#SelectCtiItem`;
 
       if (Array.isArray(appItem)) {
-        appItemsStr = appItem.map((item) => "<soap:item>" + "<soap:AppItem>" + escapeXml(item) + "</soap:AppItem>" + "</soap:item>").join("");
+        appItemsStr = appItem
+          .map(
+            (item) =>
+              "<soap:item>" +
+              "<soap:AppItem>" +
+              escapeXml(item) +
+              "</soap:AppItem>" +
+              "</soap:item>",
+          )
+          .join("");
       } else {
-        appItemsStr = "<soap:item>" + "<soap:AppItem>" + escapeXml(appItem) + "</soap:AppItem>" + "</soap:item>";
+        appItemsStr =
+          "<soap:item>" +
+          "<soap:AppItem>" +
+          escapeXml(appItem) +
+          "</soap:AppItem>" +
+          "</soap:item>";
       }
 
       // Bug #1 fix: was using appItem instead of devName
       if (Array.isArray(devName)) {
-        devNamesStr = devName.map((item) => "<soap:item>" + "<soap:DevName>" + escapeXml(item) + "</soap:DevName>" + "</soap:item>").join("");
+        devNamesStr = devName
+          .map(
+            (item) =>
+              "<soap:item>" +
+              "<soap:DevName>" +
+              escapeXml(item) +
+              "</soap:DevName>" +
+              "</soap:item>",
+          )
+          .join("");
       } else {
-        devNamesStr = "<soap:item>" + "<soap:DevName>" + escapeXml(devName) + "</soap:DevName>" + "</soap:item>";
+        devNamesStr =
+          "<soap:item>" +
+          "<soap:DevName>" +
+          escapeXml(devName) +
+          "</soap:DevName>" +
+          "</soap:item>";
       }
 
       if (Array.isArray(dirNumber)) {
-        dirNumbersStr = dirNumber.map((item) => "<soap:item>" + "<soap:DirNumber>" + escapeXml(item) + "</soap:DirNumber>" + "</soap:item>").join("");
+        dirNumbersStr = dirNumber
+          .map(
+            (item) =>
+              "<soap:item>" +
+              "<soap:DirNumber>" +
+              escapeXml(item) +
+              "</soap:DirNumber>" +
+              "</soap:item>",
+          )
+          .join("");
       } else {
-        dirNumbersStr = "<soap:item>" + "<soap:DirNumber>" + escapeXml(dirNumber) + "</soap:DirNumber>" + "</soap:item>";
+        dirNumbersStr =
+          "<soap:item>" +
+          "<soap:DirNumber>" +
+          escapeXml(dirNumber) +
+          "</soap:DirNumber>" +
+          "</soap:item>";
       }
 
-      XML = util.format(XML_CTI_ENVELOPE, maxReturnedDevices, ctiMgrClass, status, node, selectAppBy, appItemsStr, devNamesStr, dirNumbersStr);
+      XML = util.format(
+        XML_CTI_ENVELOPE,
+        maxReturnedDevices,
+        ctiMgrClass,
+        status,
+        node,
+        selectAppBy,
+        appItemsStr,
+        devNamesStr,
+        dirNumbersStr,
+      );
 
       let soapBody = Buffer.from(XML);
       options.body = soapBody;
@@ -427,14 +618,19 @@ class risPortService {
       let rateLimitAttempt = 0;
 
       while (true) {
-        let response = await fetch(`https://${host}:8443/realtimeservice2/services/RISService70`, options);
+        let response = await fetch(
+          `https://${host}:8443/realtimeservice2/services/RISService70`,
+          options,
+        );
 
         let promiseResults = {
           cookie: "",
           results: "",
         };
 
-        const responseCookie = response.headers.get("set-cookie") ? response.headers.get("set-cookie") : "";
+        const responseCookie = response.headers.get("set-cookie")
+          ? response.headers.get("set-cookie")
+          : "";
         promiseResults.cookie = responseCookie;
 
         if (responseCookie) {
@@ -446,24 +642,38 @@ class risPortService {
         removeKeys(output, "$");
 
         if (!response.ok) {
-          // Bug #2 fix: removed undefined SessionHandle reference
-          throw { status: response.status, code: http.STATUS_CODES[response.status], message: output?.Body?.Fault?.faultstring ? output.Body.Fault.faultstring : "Unknown" };
+          throw new RisPortError(
+            extractFaultString(output?.Body?.Fault),
+            response.status,
+            http.STATUS_CODES[response.status],
+          );
         }
 
         // Feature #10: Rate limit detection
-        if (output?.Body?.Fault?.faultstring && output.Body.Fault.faultstring.includes("Exceeded allowed rate")) {
+        const ctiFaultStr = extractFaultString(output?.Body?.Fault);
+        if (
+          output?.Body?.Fault &&
+          ctiFaultStr.includes("Exceeded allowed rate")
+        ) {
           if (rateLimitAttempt < this._maxRateLimitRetries) {
             const backoffMs = 30000 * Math.pow(2, rateLimitAttempt);
             rateLimitAttempt++;
             await new Promise((resolve) => setTimeout(resolve, backoffMs));
             continue;
           }
-          throw { status: 429, code: "RateLimited", message: output.Body.Fault.faultstring };
+          throw new RisPortError(ctiFaultStr, 429, "RateLimited");
+        }
+
+        // Catch any other SOAP faults in 200 responses
+        if (output?.Body?.Fault) {
+          throw new RisPortError(ctiFaultStr, 500, "SOAPFault");
         }
 
         if (output?.Body?.selectCtiItemResponse?.selectCtiItemReturn) {
-          let returnResults = output?.Body?.selectCtiItemResponse?.selectCtiItemReturn?.SelectCtiItemResult?.CtiNodes?.item;
-          promiseResults.results = (returnResults ? clean(returnResults) : "");
+          let returnResults =
+            output?.Body?.selectCtiItemResponse?.selectCtiItemReturn
+              ?.SelectCtiItemResult?.CtiNodes?.item;
+          promiseResults.results = returnResults ? clean(returnResults) : "";
           return promiseResults;
         } else {
           return promiseResults;
@@ -523,7 +733,10 @@ const clean = (object) => {
     let writeIdx = 0;
     for (let readIdx = 0; readIdx < object.length; readIdx++) {
       const v = object[readIdx];
-      const isEmpty = (v && typeof v === "object" && !Object.keys(v).length) || v === null || v === undefined;
+      const isEmpty =
+        (v && typeof v === "object" && !Object.keys(v).length) ||
+        v === null ||
+        v === undefined;
       if (!isEmpty) {
         object[writeIdx] = v;
         writeIdx++;
@@ -535,7 +748,11 @@ const clean = (object) => {
       if (v && typeof v === "object") {
         clean(v);
       }
-      if ((v && typeof v === "object" && !Object.keys(v).length) || v === null || v === undefined) {
+      if (
+        (v && typeof v === "object" && !Object.keys(v).length) ||
+        v === null ||
+        v === undefined
+      ) {
         delete object[k];
       }
     }
@@ -551,7 +768,9 @@ const enrichStatusReasons = (results) => {
   const items = Array.isArray(results) ? results : [results];
   for (const node of items) {
     if (node?.CmDevices?.item) {
-      const devices = Array.isArray(node.CmDevices.item) ? node.CmDevices.item : [node.CmDevices.item];
+      const devices = Array.isArray(node.CmDevices.item)
+        ? node.CmDevices.item
+        : [node.CmDevices.item];
       for (const device of devices) {
         if (device.StatusReason !== undefined) {
           const code = parseInt(device.StatusReason);
@@ -580,9 +799,10 @@ const parseXml = (xmlPart) => {
         } else {
           resolve(result);
         }
-      }
+      },
     );
   });
 };
 
+risPortService.RisPortError = RisPortError;
 module.exports = risPortService;
