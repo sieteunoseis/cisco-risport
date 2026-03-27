@@ -229,7 +229,7 @@ class risPortService {
     try {
       let options = this._cloneOptions();
       let host = this._HOST;
-      options.SOAPAction = `http://schemas.cisco.com/ast/soap/action/#RisPort#${soapAction}`;
+      options.headers.SOAPAction = `http://schemas.cisco.com/ast/soap/action/#RisPort#${soapAction}`;
       let itemStr;
       let XML;
 
