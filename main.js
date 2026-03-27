@@ -116,7 +116,9 @@ class risPortService {
         ) {
           return false;
         }
-        if (error !== null || response.status >= 400) {
+        // Only retry on network errors or 503 (Service Unavailable)
+        // Don't retry 4xx (auth) or 500 (server overload from rate limiting)
+        if (error !== null || (response && response.status === 503)) {
           const delay = (ms) =>
             new Promise((resolve) => setTimeout(resolve, ms));
           await delay(
@@ -321,12 +323,24 @@ class risPortService {
           this._OPTIONS.headers.cookie = responseCookie;
         }
 
-        let output = await parseXml(await response.text());
-        removeKeys(output, "$");
+        const responseText = await response.text();
+        let output;
+        try {
+          output = await parseXml(responseText);
+          removeKeys(output, "$");
+        } catch (parseErr) {
+          // Non-XML response (e.g. plain text error from overloaded server)
+          throw new RisPortError(
+            responseText.substring(0, 200) || `HTTP ${response.status}`,
+            response.status,
+            http.STATUS_CODES[response.status],
+          );
+        }
 
         if (!response.ok) {
           throw new RisPortError(
-            extractFaultString(output?.Body?.Fault),
+            extractFaultString(output?.Body?.Fault) ||
+              `HTTP ${response.status} ${http.STATUS_CODES[response.status]}`,
             response.status,
             http.STATUS_CODES[response.status],
           );
@@ -638,12 +652,23 @@ class risPortService {
           this._OPTIONS.headers.cookie = responseCookie;
         }
 
-        let output = await parseXml(await response.text());
-        removeKeys(output, "$");
+        const ctiResponseText = await response.text();
+        let output;
+        try {
+          output = await parseXml(ctiResponseText);
+          removeKeys(output, "$");
+        } catch (parseErr) {
+          throw new RisPortError(
+            ctiResponseText.substring(0, 200) || `HTTP ${response.status}`,
+            response.status,
+            http.STATUS_CODES[response.status],
+          );
+        }
 
         if (!response.ok) {
           throw new RisPortError(
-            extractFaultString(output?.Body?.Fault),
+            extractFaultString(output?.Body?.Fault) ||
+              `HTTP ${response.status} ${http.STATUS_CODES[response.status]}`,
             response.status,
             http.STATUS_CODES[response.status],
           );
